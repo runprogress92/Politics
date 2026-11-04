@@ -1,0 +1,8 @@
+# Déploiement sur Render (Blueprint) : site statique, sans compilation.
+# Render > New > Blueprint > choisir ce dépôt : la configuration ci-dessous est lue automatiquement.
+services:
+  - type: web
+    name: isoloir
+    runtime: static
+    buildCommand: echo "Site statique, aucune compilation"
+    staticPublishPath: .
