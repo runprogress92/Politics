@@ -7,7 +7,8 @@ Un test d'orientation politique en français. Tu réponds à des affirmations, e
 - **ta place dans l'hémicycle**, de l'extrême gauche à l'extrême droite ;
 - **ce que tu voterais aux États-Unis** (avec le duel Démocrates / Républicains), **au Royaume-Uni** et **en Allemagne** ;
 - **ta famille d'idées** (social-démocratie, libéralisme, conservatisme, écologie politique…) ;
-- une **boussole** qui croise deux axes au choix pour te situer face aux partis de chaque pays.
+- une **boussole** qui croise deux axes au choix pour te situer face aux partis de chaque pays ;
+- les **logos des partis et les portraits de leurs dirigeants**, sur le bulletin, dans les classements et dans la galerie « Les partis et leurs dirigeants ».
 
 Deux versions : **rapide** (30 questions, environ 5 minutes) et **complète** (74 questions, environ 12 minutes).
 
@@ -26,6 +27,7 @@ Les réponses en cours sont gardées dans le navigateur (`localStorage`). Rien n
 | --- | --- |
 | `index.html` | Structure des trois écrans : accueil, questionnaire, résultats |
 | `assets/data.js` | Axes, questions, partis par pays, familles d'idées, sources |
+| `assets/media.js` | Chargement des logos et portraits depuis Wikimédia Commons |
 | `assets/app.js` | Déroulement du questionnaire, calcul des scores, graphiques |
 | `assets/style.css` | Mise en forme, thème clair et sombre, affichage mobile |
 
@@ -47,12 +49,23 @@ affinité = 100 − 0,7 × √( moyenne des (toi − parti)² )
 
 La place dans l'hémicycle est la moyenne des places habituelles des partis français, pondérée par ta proximité avec chacun d'eux.
 
+## Images
+
+Les logos et les portraits viennent de [Wikimédia Commons](https://commons.wikimedia.org/), qui n'héberge que des fichiers sous licence libre. Le navigateur du visiteur les récupère en trois étapes :
+
+1. le titre de l'article Wikipédia (champ `wp`) donne l'élément Wikidata ;
+2. Wikidata donne le logo (propriété P154) ou le portrait (propriété P18) ;
+3. Commons donne la miniature, l'auteur et la licence.
+
+L'auteur et la licence de chaque image sont listés dans la section « Crédits des images ». Le résultat est gardé 7 jours dans le navigateur. Si Wikimédia est inaccessible, des pastilles aux couleurs des partis, avec leurs initiales, s'affichent à la place.
+
 ## Modifier les questions ou les partis
 
 Tout se trouve dans `assets/data.js` :
 
 - une question : `{ id, s, w, t, c }`. `w` donne les poids par axe (négatif : être d'accord pousse vers le pôle de gauche de l'axe), `s: 1` l'inclut dans la version rapide, `c` est un texte de contexte facultatif ;
-- un parti : `{ id, short, name, color, family, who, pos, desc, points }`. `pos` donne ses six coordonnées, et pour la France `lr` donne sa place dans l'hémicycle.
+- un parti : `{ id, short, name, color, family, wp, people, pos, desc, points }`. `pos` donne ses six coordonnées, et pour la France `lr` donne sa place dans l'hémicycle ;
+- `wp` liste des titres d'articles Wikipédia candidats, par ordre de préférence (`"fr:Rassemblement national|en:National Rally"`), et chaque personne de `people` a la même structure : `{ n: "Nom", wp: "fr:Titre", role: "Fonction" }`.
 
 Si tu changes la liste ou l'ordre des questions, augmente `VERSION` : les anciens liens de résultat ne seraient plus lisibles correctement.
 

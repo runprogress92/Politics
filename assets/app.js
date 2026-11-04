@@ -7,6 +7,7 @@
   const AXIS = Object.fromEntries(AXES.map((a) => [a.id, a]));
   const STORE_KEY = "isoloir-progress-v" + D.VERSION;
   const SVGNS = "http://www.w3.org/2000/svg";
+  const M = window.ISOLOIR_MEDIA;
 
   // Ordre d'affichage des réponses : de l'accord au désaccord.
   const CHOICES = [
@@ -178,6 +179,7 @@
     country: "fr",
     resCompass: { country: "fr", x: "eco", y: "aut" },
     previewCompass: { country: "fr", x: "eco", y: "aut" },
+    gallery: "fr",
   };
 
   function showView(name) {
@@ -207,6 +209,139 @@
     );
     renderResume();
     renderCompassBlock($("#preview-compass"), $("#preview-controls"), state.previewCompass, null);
+    renderGallery();
+  }
+
+  // ------------------------------------------------------------------
+  // Logos des partis et portraits des dirigeants
+  // ------------------------------------------------------------------
+  const whoText = (p) => p.people.map((h) => h.n).join(", ");
+
+  // Couleur de texte lisible sur la couleur du parti (pastilles de secours).
+  function readableOn(hex) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
+    if (!m) return "#ffffff";
+    const n = parseInt(m[1], 16);
+    const lin = (c) => {
+      c /= 255;
+      return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    };
+    const L = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+    return L > 0.4 ? "#14161b" : "#ffffff";
+  }
+
+  function initials(name) {
+    return name
+      .split(/[\s-]+/)
+      .filter((w) => /^[A-Za-zÀ-ÖØ-öø-ÿ]/.test(w) && w !== "De" && w !== "van")
+      .map((w) => w[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase();
+  }
+
+  const partyStyle = (p) => "--party:" + p.color + ";--party-ink:" + readableOn(p.color);
+
+  function logoEl(p, size) {
+    return el("span", { class: "logo logo-" + size, "data-media": M.partyKey(p), "data-label": "Logo : " + p.name, style: partyStyle(p) }, [
+      el("span", { class: "logo-fallback", "aria-hidden": "true", text: p.short }),
+    ]);
+  }
+
+  function faceEl(h, p, size) {
+    return el("span", { class: "face face-" + size, "data-media": M.personKey(h), "data-label": h.n, style: partyStyle(p) }, [
+      el("span", { class: "face-fallback", "aria-hidden": "true", text: initials(h.n) }),
+    ]);
+  }
+
+  function peopleList(p) {
+    return el(
+      "ul",
+      { class: "people" },
+      p.people.map((h) => el("li", {}, [faceEl(h, p, "md"), el("span", {}, [el("strong", { text: h.n }), el("span", { class: "muted", text: h.role })])]))
+    );
+  }
+
+  // Remplace les pastilles par les images dès qu'elles sont disponibles.
+  function applyMedia(root) {
+    $$("[data-media]", root || document).forEach((node) => {
+      if (node.dataset.applied) return;
+      const m = M.get(node.dataset.media);
+      if (!m) return;
+      node.dataset.applied = "1";
+      const fallback = node.firstElementChild;
+      const img = el("img", {
+        src: m.src,
+        alt: "",
+        title: node.dataset.label + " · " + m.artist + " · " + m.license + " · Wikimédia Commons",
+        loading: "lazy",
+        decoding: "async",
+      });
+      img.addEventListener("error", () => {
+        img.remove();
+        if (fallback) fallback.hidden = false;
+        node.classList.remove("has-img");
+      });
+      if (fallback) fallback.hidden = true;
+      node.classList.add("has-img");
+      node.append(img);
+    });
+  }
+
+  function renderGallery() {
+    const tabs = $("#gallery-tabs");
+    if (!tabs.childElementCount) {
+      tabs.replaceChildren(
+        ...D.COUNTRIES.map((c) =>
+          el("button", {
+            type: "button",
+            "data-country": c.id,
+            "aria-pressed": String(state.gallery === c.id),
+            text: c.name,
+            onclick: () => {
+              state.gallery = c.id;
+              $$("button", tabs).forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.country === c.id)));
+              renderGallery();
+            },
+          })
+        )
+      );
+    }
+    const c = D.COUNTRIES.find((x) => x.id === state.gallery);
+    const parties = c.id === "fr" ? c.parties.slice().sort((a, b) => a.lr - b.lr) : c.parties;
+    const grid = $("#gallery");
+    grid.replaceChildren(
+      ...parties.map((p) =>
+        el("article", { class: "pcard" }, [
+          el("div", { class: "pcard-head" }, [logoEl(p, "lg"), el("div", { class: "pcard-title" }, [el("h3", { text: p.name }), el("span", { class: "muted", text: p.family })])]),
+          peopleList(p),
+        ])
+      )
+    );
+    applyMedia(grid);
+  }
+
+  function renderCredits() {
+    const list = $("#credits");
+    const note = $("#credits-status");
+    const st = M.status();
+    const items = M.all()
+      .slice()
+      .sort((a, b) => (a.kind === b.kind ? a.label.localeCompare(b.label, "fr") : a.kind === "logo" ? -1 : 1));
+    if (st === "idle" || st === "loading") {
+      note.textContent = "Chargement des logos et des portraits depuis Wikimédia Commons…";
+    } else if (!items.length) {
+      note.textContent =
+        "Les logos et les portraits n'ont pas pu être chargés depuis Wikimédia Commons (connexion bloquée ou hors ligne). Des pastilles aux couleurs des partis les remplacent.";
+    } else {
+      note.textContent =
+        items.length + " images sous licence libre, hébergées par Wikimédia Commons. Chaque lien ouvre la page du fichier, avec sa licence complète.";
+    }
+    list.replaceChildren(
+      ...items.map((m) =>
+        el("li", {}, [el("a", { href: m.page, target: "_blank", rel: "noopener", text: (m.kind === "logo" ? "Logo " : "Portrait ") + "· " + m.label }), " : " + m.artist + ", " + m.license])
+      )
+    );
   }
 
   function renderResume() {
@@ -428,8 +563,9 @@
     ballot.replaceChildren(
       el("span", { class: "ballot-bar", style: "background:" + p.color, "aria-hidden": "true" }),
       el("span", { class: "ballot-kicker", text: "Bulletin de vote" }),
+      logoEl(p, "xl"),
       el("span", { class: "ballot-name", text: p.name }),
-      el("span", { class: "ballot-who", text: p.who }),
+      el("span", { class: "ballot-people" }, p.people.map((h) => el("span", { class: "ballot-person" }, [faceEl(h, p, "md"), el("span", { text: h.n })]))),
       el("span", { class: "stamp", "aria-hidden": "true", text: "A VOTÉ" })
     );
 
@@ -461,10 +597,13 @@
 
     const items = D.COUNTRIES.filter((c) => c.id !== "fr").map((c) => {
       const t = R.ranks[c.id][0];
-      return el("div", { class: "elsewhere-item" }, [
-        el("span", { class: "eyebrow", text: "Si tu votais " + countryIn(c) }),
-        el("strong", { text: t.party.name }),
-        el("span", { class: "num", text: t.aff + " % d'affinité" }),
+      return el("div", { class: "elsewhere-item has-logo" }, [
+        logoEl(t.party, "md"),
+        el("div", { class: "ew-text" }, [
+          el("span", { class: "eyebrow", text: "Si tu votais " + countryIn(c) }),
+          el("strong", { text: t.party.name }),
+          el("span", { class: "num", text: t.aff + " % d'affinité" }),
+        ]),
       ]);
     });
     const ideo2 = R.ideos[1].party;
@@ -476,6 +615,7 @@
       ])
     );
     $("#res-elsewhere").replaceChildren(...items);
+    applyMedia($(".verdict"));
   }
 
   function countryIn(c) {
@@ -774,8 +914,8 @@
         },
         [
           el("span", { class: "rank-pos", text: String(i + 1) }),
-          el("span", { class: "swatch", style: "background:" + p.color }),
-          el("span", { class: "rank-name" }, [el("strong", { text: p.name }), el("span", { text: [p.family, p.who].filter(Boolean).join(" · ") })]),
+          logoEl(p, "sm"),
+          el("span", { class: "rank-name" }, [el("strong", { text: p.name }), el("span", { text: [p.family, whoText(p)].filter(Boolean).join(" · ") })]),
           el("span", { class: "bar", "aria-hidden": "true" }, [el("span", { style: "width:" + r.aff + "%;background:" + p.color })]),
           el("span", { class: "rank-pct", text: r.aff + " %" }),
           el("span", { class: "chev", "aria-hidden": "true", text: "›" }),
@@ -785,6 +925,7 @@
     });
     parts.push(list);
     panel.replaceChildren(...parts);
+    applyMedia(panel);
   }
 
   function partyDetail(p, u) {
@@ -797,6 +938,7 @@
     if (!prox.length) prox.push("Ni accord net ni désaccord majeur sur un axe en particulier.");
 
     return [
+      peopleList(p),
       el("p", { class: "desc", text: p.desc }),
       el("ul", {}, p.points.map((t) => el("li", { text: t }))),
       el("div", { class: "legend" }, [
@@ -876,7 +1018,7 @@
       a.addEventListener("click", (ev) => {
         ev.preventDefault();
         const id = a.dataset.scroll;
-        if (id === "axes" && $("#view-home").hidden) goHome();
+        if ((id === "axes" || id === "partis") && $("#view-home").hidden) goHome();
         const target = document.getElementById(id);
         if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
       })
@@ -946,7 +1088,13 @@
 
   function init() {
     bind();
+    M.onChange(() => {
+      applyMedia(document);
+      renderCredits();
+    });
+    renderCredits();
     renderHome();
+    M.load();
     const decoded = decodeHash(location.hash);
     if (decoded) showResults(decoded.mode, decoded.answers);
     else showView("home");

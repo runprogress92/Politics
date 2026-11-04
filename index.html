@@ -26,6 +26,7 @@
   </button>
   <nav class="site-nav" aria-label="Navigation principale">
     <a href="#axes" data-scroll="axes">Les six axes</a>
+    <a href="#partis" data-scroll="partis">Les partis</a>
     <a href="#methode" data-scroll="methode">Méthode et sources</a>
   </nav>
 </header>
@@ -57,7 +58,7 @@
           <span class="mode-meta"><span class="num" data-count="r"></span> questions · environ 5 minutes</span>
           <span class="mode-go" aria-hidden="true">→</span>
         </button>
-        <p class="privacy">Anonyme : tes réponses restent dans ton navigateur. Aucun compte, aucun envoi de données.</p>
+        <p class="privacy">Anonyme : tes réponses restent dans ton navigateur, sans compte ni envoi de données. Seuls les logos et les portraits sont chargés depuis Wikimédia Commons.</p>
       </div>
     </div>
 
@@ -78,6 +79,15 @@
         <div class="figure"><div id="preview-compass"></div></div>
         <div class="controls" id="preview-controls"></div>
       </div>
+    </section>
+
+    <section class="section" id="partis" aria-labelledby="gallery-title">
+      <div class="section-head">
+        <h2 id="gallery-title">Les partis et leurs dirigeants</h2>
+        <p>Les 36 partis et courants comparés par le test, avec les personnalités qui les dirigent ou les incarnent.</p>
+      </div>
+      <div class="seg gallery-tabs" role="group" aria-label="Pays affiché" id="gallery-tabs"></div>
+      <div class="gallery" id="gallery"></div>
     </section>
   </section>
 
@@ -208,6 +218,11 @@
         <h3>Sources consultées</h3>
         <ul id="sources"></ul>
       </div>
+      <div class="credits-block">
+        <h3>Crédits des images</h3>
+        <p id="credits-status"></p>
+        <ul class="credits" id="credits"></ul>
+      </div>
     </div>
   </section>
 </main>
@@ -217,6 +232,7 @@
 </footer>
 <!--/BODY-->
 <script src="assets/data.js"></script>
+<script src="assets/media.js"></script>
 <script src="assets/app.js"></script>
 </body>
 </html>
