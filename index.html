@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!--HEAD-->
+<title>L'Isoloir</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Test d'orientation politique en 74 questions : ta position sur six axes et les partis qui te correspondent en France, aux États-Unis, au Royaume-Uni et en Allemagne.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=JetBrains+Mono:wght@500;700&display=swap">
+<!--/HEAD-->
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<!--BODY-->
+<header class="site-head">
+  <button class="brand" type="button" id="brand" aria-label="L'Isoloir, retour à l'accueil">
+    <svg viewBox="0 0 32 32" aria-hidden="true">
+      <rect x="4" y="11" width="24" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2.4"/>
+      <rect x="10" y="10" width="12" height="3" rx="1.5" fill="currentColor"/>
+      <path d="M12.5 3h7l1.5 8.5h-10z" fill="var(--accent)"/>
+    </svg>
+    L'Isoloir
+  </button>
+  <nav class="site-nav" aria-label="Navigation principale">
+    <a href="#axes" data-scroll="axes">Les six axes</a>
+    <a href="#methode" data-scroll="methode">Méthode et sources</a>
+  </nav>
+</header>
+
+<main>
+  <!-- ============ ACCUEIL ============ -->
+  <section id="view-home" class="wrap" aria-labelledby="home-title">
+    <div class="hero">
+      <div>
+        <p class="eyebrow">Test d'orientation politique · données au <span data-updated></span></p>
+        <h1 id="home-title">Entre dans l'isoloir. <em>Découvre où tu votes vraiment.</em></h1>
+        <p class="lede">Réponds à des affirmations sur <strong>l'économie, les mœurs, l'autorité, l'immigration, l'Europe et l'écologie</strong>. À la fin : ta position sur six axes, le parti français qui te ressemble le plus, et ce que tu voterais aux États-Unis, au Royaume-Uni ou en Allemagne.</p>
+      </div>
+      <div class="modes">
+        <div class="resume" id="resume" hidden>
+          <span>Un questionnaire est en cours : <b class="num" id="resume-count"></b></span>
+          <span class="actions">
+            <button class="btn btn-primary" type="button" id="resume-go">Reprendre</button>
+            <button class="btn btn-ghost" type="button" id="resume-drop">Effacer</button>
+          </span>
+        </div>
+        <button class="mode is-main" type="button" data-mode="c">
+          <span class="mode-title">Version complète</span>
+          <span class="mode-meta"><span class="num" data-count="c"></span> questions · environ 12 minutes · résultat le plus précis</span>
+          <span class="mode-go" aria-hidden="true">→</span>
+        </button>
+        <button class="mode" type="button" data-mode="r">
+          <span class="mode-title">Version rapide</span>
+          <span class="mode-meta"><span class="num" data-count="r"></span> questions · environ 5 minutes</span>
+          <span class="mode-go" aria-hidden="true">→</span>
+        </button>
+        <p class="privacy">Anonyme : tes réponses restent dans ton navigateur. Aucun compte, aucun envoi de données.</p>
+      </div>
+    </div>
+
+    <section class="section" id="axes" aria-labelledby="axes-title">
+      <div class="section-head">
+        <h2 id="axes-title">Les six axes mesurés</h2>
+        <p>Le clivage gauche-droite ne suffit pas. Chaque affirmation fait bouger ta position sur un ou plusieurs de ces axes.</p>
+      </div>
+      <div class="axes-grid" id="axes-grid"></div>
+    </section>
+
+    <section class="section" aria-labelledby="preview-title">
+      <div class="section-head">
+        <h2 id="preview-title">Où se situent les partis</h2>
+        <p>Position estimée de chaque parti sur deux axes au choix. Après le test, ton propre point apparaît parmi eux.</p>
+      </div>
+      <div class="compass-layout">
+        <div class="figure"><div id="preview-compass"></div></div>
+        <div class="controls" id="preview-controls"></div>
+      </div>
+    </section>
+  </section>
+
+  <!-- ============ QUESTIONNAIRE ============ -->
+  <section id="view-quiz" class="narrow quiz" hidden aria-label="Questionnaire">
+    <div class="quiz-top">
+      <span class="eyebrow">Question <span class="num" id="q-index"></span> sur <span class="num" id="q-total"></span></span>
+      <span class="chip" id="q-axis"></span>
+    </div>
+    <div class="progress" role="progressbar" aria-label="Progression" aria-valuemin="0" aria-valuemax="100" id="q-progress"><span></span></div>
+
+    <div class="q-card">
+      <h2 class="q-text" id="q-text" tabindex="-1" aria-live="polite"></h2>
+      <button class="q-ctx-toggle" type="button" id="q-ctx-toggle" aria-expanded="false" aria-controls="q-ctx" hidden>Contexte</button>
+      <p class="q-ctx" id="q-ctx" hidden></p>
+      <div class="answers" id="answers" role="group" aria-label="Ta réponse"></div>
+    </div>
+
+    <div class="quiz-nav">
+      <button class="btn btn-ghost" type="button" id="q-prev">← Précédente</button>
+      <div class="right">
+        <button class="btn btn-ghost skip" type="button" id="q-skip">Je ne sais pas, passer</button>
+        <button class="btn" type="button" id="q-finish" hidden>Voir mes résultats</button>
+      </div>
+    </div>
+    <p class="kbd-hint">Raccourcis clavier : touches 1 à 5 pour répondre, 0 pour passer, ← pour revenir.</p>
+  </section>
+
+  <!-- ============ RÉSULTATS ============ -->
+  <section id="view-results" class="wrap results" hidden aria-labelledby="res-title">
+    <div class="verdict">
+      <div class="ballot" id="ballot" aria-label="Ton bulletin"></div>
+      <div class="verdict-text">
+        <p class="eyebrow">Ton résultat · <span id="res-mode"></span></p>
+        <h1 id="res-title"></h1>
+        <p class="match" id="res-match"></p>
+        <p class="summary" id="res-summary"></p>
+        <div class="elsewhere" id="res-elsewhere"></div>
+      </div>
+    </div>
+
+    <section class="section" aria-labelledby="axes-res-title" style="margin-top:40px">
+      <div class="section-head">
+        <h2 id="axes-res-title">Tes six axes</h2>
+        <div class="legend"><span><i class="l-you"></i>Ta position</span><span>Le trait central marque l'équilibre</span></div>
+      </div>
+      <div class="axis-rows" id="axis-rows"></div>
+    </section>
+
+    <section class="section" aria-labelledby="hemi-title">
+      <div class="section-head">
+        <h2 id="hemi-title">Ta place dans l'hémicycle</h2>
+        <p>Les partis français dans leur ordre habituel, de l'extrême gauche à l'extrême droite. L'aiguille indique où tes réponses te placent parmi eux.</p>
+      </div>
+      <div class="figure"><div id="hemicycle"></div><p class="figure-caption" id="hemi-caption"></p></div>
+    </section>
+
+    <section class="section" aria-labelledby="compass-title">
+      <div class="section-head">
+        <h2 id="compass-title">La boussole</h2>
+        <p>Croise deux axes pour te situer face aux partis d'un pays.</p>
+      </div>
+      <div class="compass-layout">
+        <div class="figure"><div id="res-compass"></div></div>
+        <div class="controls" id="res-controls"></div>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="rank-title">
+      <div class="section-head">
+        <h2 id="rank-title">Tes affinités, pays par pays</h2>
+        <p>Pourcentage de proximité entre tes six scores et la position estimée de chaque parti. Touche un parti pour comparer en détail.</p>
+      </div>
+      <div class="tabs seg" role="tablist" id="country-tabs" aria-label="Pays"></div>
+      <div id="country-panel" role="tabpanel"></div>
+    </section>
+
+    <section class="section" aria-labelledby="ideo-title">
+      <div class="section-head">
+        <h2 id="ideo-title">Ta famille d'idées</h2>
+        <p>Les grands courants de pensée politique les plus proches de ton profil, indépendamment des partis.</p>
+      </div>
+      <div class="ideo-grid" id="ideo-grid"></div>
+    </section>
+
+    <section class="section" aria-labelledby="share-title">
+      <div class="section-head">
+        <h2 id="share-title">Garder ou partager ton résultat</h2>
+        <p>Le lien contient tes réponses : il suffit de l'ouvrir pour retrouver ce résultat.</p>
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary" type="button" id="copy-link">Copier le lien du résultat</button>
+        <button class="btn" type="button" id="restart-c">Refaire le test complet</button>
+        <button class="btn" type="button" id="restart-r">Refaire le test rapide</button>
+        <span class="toast" id="copy-toast" role="status"></span>
+      </div>
+      <input class="copy-out" id="copy-out" type="text" readonly hidden aria-label="Lien du résultat">
+      <details class="answers-recap" style="margin-top:24px">
+        <summary>Revoir mes réponses</summary>
+        <ul class="recap-list" id="recap-list"></ul>
+      </details>
+    </section>
+  </section>
+
+  <!-- ============ MÉTHODE ============ -->
+  <section class="wrap section" id="methode" aria-labelledby="method-title">
+    <div class="section-head">
+      <h2 id="method-title">Méthode et sources</h2>
+      <p>Un outil pédagogique et indépendant, sans lien avec aucun parti. Il ne remplace pas la lecture des programmes.</p>
+    </div>
+    <div class="method">
+      <div>
+        <h3>Comment ton score est calculé</h3>
+        <p>Chaque réponse vaut de −2 (pas du tout d'accord) à +2 (tout à fait d'accord). Elle est multipliée par le sens de l'affirmation sur chaque axe concerné. La moitié des affirmations de chaque axe vont dans un sens, l'autre moitié dans l'autre, pour éviter qu'un « oui » systématique fausse le résultat. Les questions passées ne comptent pas.</p>
+        <p class="formula">score(axe) = 100 × Σ (réponse × poids) ÷ Σ (2 × |poids|)</p>
+      </div>
+      <div>
+        <h3>Comment l'affinité avec un parti est calculée</h3>
+        <p>Chaque parti a une position estimée de −100 à +100 sur les six axes. L'affinité mesure la distance entre ton profil et le sien : plus elle est faible, plus le pourcentage est élevé.</p>
+        <p class="formula">affinité = 100 − 0,7 × √( moyenne des (toi − parti)² )</p>
+      </div>
+      <div>
+        <h3>D'où viennent les positions des partis</h3>
+        <p>Ce sont des estimations éditoriales, fondées sur les programmes, les votes au Parlement, les déclarations des dirigeants et les enquêtes de politologues comme le Chapel Hill Expert Survey. Elles simplifient forcément des partis traversés par des débats internes. Aux États-Unis, chaque grand parti est découpé en deux courants, car l'écart entre eux est considérable.</p>
+        <p>Les noms des personnalités indiquent les figures de proue de chaque parti, pas forcément leur candidat à la présidentielle d'avril 2027.</p>
+      </div>
+      <div>
+        <h3>Sources consultées</h3>
+        <ul id="sources"></ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-foot">
+  <p>L'Isoloir · test indépendant et sans publicité · données au <span data-updated></span>. Les positions des partis évoluent : vérifie toujours leurs programmes officiels avant de voter.</p>
+</footer>
+<!--/BODY-->
+<script src="assets/data.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
