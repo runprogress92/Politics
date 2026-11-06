@@ -49,6 +49,16 @@ affinité = 100 − 0,7 × √( moyenne des (toi − parti)² )
 
 La place dans l'hémicycle est la moyenne des places habituelles des partis français, pondérée par ta proximité avec chacun d'eux.
 
+## Résultats enregistrés
+
+Sous chaque résultat, le formulaire « Garde ce résultat » permet de l'enregistrer avec un prénom ou un pseudo (24 caractères au plus, emojis acceptés). La section « Résultats enregistrés » permet ensuite :
+
+- de revoir chaque résultat, de copier son lien ou de le supprimer (avec confirmation) ;
+- d'ajouter le résultat de quelqu'un d'autre en collant son lien ;
+- de comparer plusieurs personnes : positions sur les six axes, pourcentage d'accord entre chaque paire, parti et famille d'idées de chacun.
+
+Un même pseudo ne garde que son dernier résultat. Les résultats sont stockés dans le navigateur (`localStorage`), sur l'appareil utilisé : rien n'est envoyé à un serveur. Pour réunir les résultats d'un groupe, chacun envoie son lien, qui contient ses réponses et son pseudo.
+
 ## Images
 
 Les logos et les portraits viennent de [Wikimédia Commons](https://commons.wikimedia.org/), qui n'héberge que des fichiers sous licence libre. Le navigateur du visiteur les récupère en trois étapes :

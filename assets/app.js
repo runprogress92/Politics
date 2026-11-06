@@ -180,13 +180,18 @@
     resCompass: { country: "fr", x: "eco", y: "aut" },
     previewCompass: { country: "fr", x: "eco", y: "aut" },
     gallery: "fr",
+    view: null,
+    compare: new Set(),
+    compareInit: false,
   };
 
   function showView(name) {
+    state.view = name;
     $("#view-home").hidden = name !== "home";
     $("#view-quiz").hidden = name !== "quiz";
     $("#view-results").hidden = name !== "results";
     $("#methode").hidden = name === "quiz";
+    renderSaved();
     window.scrollTo(0, 0);
   }
 
@@ -484,18 +489,43 @@
   // ------------------------------------------------------------------
   // Lien de partage (uniquement lettres, chiffres et tirets)
   // ------------------------------------------------------------------
-  function encodeAnswers(mode, answers) {
-    const body = ORDERS[mode]
+  function answersCode(mode, answers) {
+    return ORDERS[mode]
       .map((q) => {
         const v = answers[q.id];
         return v === undefined || v === null ? "x" : VALUE_TO_CODE[v];
       })
       .join("");
-    return "resultat-" + mode + D.VERSION + "-" + body;
+  }
+
+  // Le pseudo est ajouté au lien en hexadécimal (UTF-8), pour ne garder
+  // que des lettres, des chiffres et des tirets dans l'adresse.
+  function nameToHex(name) {
+    return Array.from(new TextEncoder().encode(name))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  }
+
+  function hexToName(hex) {
+    try {
+      if (!hex || hex.length % 2) return "";
+      const bytes = Uint8Array.from(hex.match(/../g).map((h) => parseInt(h, 16)));
+      return cleanName(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function resultHash(mode, code, name) {
+    return "resultat-" + mode + D.VERSION + "-" + code + (name ? "-de-" + nameToHex(name) : "");
+  }
+
+  function encodeAnswers(mode, answers, name) {
+    return resultHash(mode, answersCode(mode, answers), name);
   }
 
   function decodeHash(hash) {
-    const m = /^#?resultat-([cr])(\d+)-([a-ex]+)$/.exec(hash || "");
+    const m = /^#?resultat-([cr])(\d+)-([a-ex]+)(?:-de-([0-9a-f]+))?$/.exec(hash || "");
     if (!m || m[2] !== D.VERSION) return null;
     const mode = m[1];
     const order = ORDERS[mode];
@@ -506,7 +536,7 @@
       if (v !== null) answers[q.id] = v;
       else answers[q.id] = null;
     });
-    return { mode, answers };
+    return { mode, answers, code: m[3], name: hexToName(m[4]) };
   }
 
   function setHash(code) {
@@ -529,13 +559,13 @@
   // ------------------------------------------------------------------
   // Résultats
   // ------------------------------------------------------------------
-  function showResults(mode, answers) {
+  function showResults(mode, answers, name) {
     const order = ORDERS[mode];
     const { s, n } = computeScores(order, answers);
     const answered = order.filter((q) => answers[q.id] !== undefined && answers[q.id] !== null).length;
     const ranks = Object.fromEntries(D.COUNTRIES.map((c) => [c.id, rankParties(s, c.parties)]));
     const ideos = rankParties(s, D.IDEOLOGIES);
-    state.results = { mode, answers, s, n, ranks, ideos, answered, order };
+    state.results = { mode, answers, s, n, ranks, ideos, answered, order, code: answersCode(mode, answers), name: name || "" };
     state.country = "fr";
     state.resCompass.country = "fr";
 
@@ -548,6 +578,8 @@
     renderCountry();
     renderIdeologies();
     renderRecap();
+    renderSaveBar();
+    renderSaved();
     $("#copy-out").hidden = true;
     $("#copy-toast").textContent = "";
   }
@@ -557,7 +589,7 @@
     const top = R.ranks.fr[0];
     const p = top.party;
 
-    $("#res-mode").textContent = MODE_LABEL[R.mode] + ", " + R.answered + " réponses sur " + R.order.length;
+    renderResultLabel();
 
     const ballot = $("#ballot");
     ballot.replaceChildren(
@@ -999,6 +1031,379 @@
   }
 
   // ------------------------------------------------------------------
+  // Résultats enregistrés sous un prénom ou un pseudo
+  // ------------------------------------------------------------------
+  const SAVED_KEY = "isoloir-saved-v1";
+  const MAX_SAVED = 200;
+  const PERSON_COLORS = ["#5b3fd6", "#0e7a8a", "#c2410c", "#be185d", "#4d7c0f", "#1d4ed8", "#a16207", "#475569"];
+  const resultCache = new Map();
+
+  const saved = {
+    list() {
+      try {
+        const arr = JSON.parse(localStorage.getItem(SAVED_KEY) || "[]");
+        return Array.isArray(arr)
+          ? arr.filter((e) => e && typeof e.id === "string" && typeof e.name === "string" && typeof e.code === "string" && (e.mode === "c" || e.mode === "r"))
+          : [];
+      } catch (e) {
+        return [];
+      }
+    },
+    write(arr) {
+      try {
+        localStorage.setItem(SAVED_KEY, JSON.stringify(arr));
+        return true;
+      } catch (e) {
+        return false;
+      }
+    },
+  };
+
+  function cleanName(raw) {
+    const s = String(raw || "")
+      .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2066-\u2069]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    return Array.from(s).slice(0, 24).join("").trim();
+  }
+
+  const sameName = (a, b) => a.localeCompare(b, "fr", { sensitivity: "base" }) === 0;
+
+  // Enregistre ou met à jour : un même pseudo ne garde que son dernier résultat.
+  function upsertSaved(name, mode, code) {
+    const list = saved.list();
+    const existing = list.find((e) => sameName(e.name, name));
+    const now = new Date().toISOString();
+    let entry;
+    if (existing) {
+      Object.assign(existing, { name, mode, code, v: D.VERSION, at: now });
+      entry = existing;
+    } else {
+      entry = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), name, mode, code, v: D.VERSION, at: now };
+      list.push(entry);
+      while (list.length > MAX_SAVED) list.shift();
+    }
+    const ok = saved.write(list);
+    if (ok) state.compare.add(entry.id);
+    return { ok, entry, replaced: !!existing };
+  }
+
+  function removeSaved(id) {
+    saved.write(saved.list().filter((e) => e.id !== id));
+    state.compare.delete(id);
+  }
+
+  // Recalcule le profil d'un résultat enregistré (avec les positions actuelles des partis).
+  function entryResult(e) {
+    if ((e.v || D.VERSION) !== D.VERSION) return null;
+    const key = e.mode + e.code;
+    if (resultCache.has(key)) return resultCache.get(key);
+    const dec = decodeHash(resultHash(e.mode, e.code));
+    if (!dec) return null;
+    const { s } = computeScores(ORDERS[e.mode], dec.answers);
+    const fr = D.COUNTRIES.find((c) => c.id === "fr").parties;
+    const r = { s, answers: dec.answers, top: rankParties(s, fr)[0], ideo: rankParties(s, D.IDEOLOGIES)[0].party, hemi: hemicyclePosition(s) };
+    resultCache.set(key, r);
+    return r;
+  }
+
+  const personColor = (list, e) => PERSON_COLORS[Math.max(0, list.findIndex((x) => x.id === e.id)) % PERSON_COLORS.length];
+  const avatarText = (name) => initials(name) || Array.from(name)[0] || "?";
+
+  function formatDate(iso) {
+    try {
+      return new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function shareUrl(hash) {
+    return location.href.split("#")[0] + "#" + hash;
+  }
+
+  function copyText(text, statusEl, outEl, okMsg) {
+    const fallback = () => {
+      outEl.value = text;
+      outEl.hidden = false;
+      outEl.focus();
+      outEl.select();
+      statusEl.textContent = "Copie automatique impossible : sélectionne le lien ci-dessous.";
+    };
+    outEl.hidden = true;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => { statusEl.textContent = okMsg || "Lien copié."; }, fallback);
+    } else {
+      fallback();
+    }
+  }
+
+  function renderResultLabel() {
+    const R = state.results;
+    $("#res-mode").textContent = (R.name ? "Résultat de " + R.name + " · " : "") + MODE_LABEL[R.mode] + ", " + R.answered + " réponses sur " + R.order.length;
+  }
+
+  function renderSaveBar() {
+    const R = state.results;
+    const list = saved.list();
+    const existing = list.find((e) => e.mode === R.mode && e.code === R.code && (!R.name || sameName(e.name, R.name)));
+    $("#save-name").value = R.name || (existing ? existing.name : "");
+    $("#save-msg").textContent = existing ? "Ce résultat est enregistré sous « " + existing.name + " »." : "";
+    $("#save-msg").classList.remove("is-error");
+  }
+
+  function submitSave(ev) {
+    ev.preventDefault();
+    const R = state.results;
+    const msg = $("#save-msg");
+    const input = $("#save-name");
+    const name = cleanName(input.value);
+    msg.classList.remove("is-error");
+    if (!name) {
+      msg.textContent = "Choisis un prénom ou un pseudo pour enregistrer ce résultat.";
+      msg.classList.add("is-error");
+      input.focus();
+      return;
+    }
+    const res = upsertSaved(name, R.mode, R.code);
+    if (!res.ok) {
+      msg.textContent = "Impossible d'enregistrer : le stockage de ce navigateur est désactivé (navigation privée ?).";
+      msg.classList.add("is-error");
+      return;
+    }
+    input.value = name;
+    R.name = name;
+    setHash(resultHash(R.mode, R.code, name));
+    renderResultLabel();
+    msg.textContent = res.replaced
+      ? "Le résultat de « " + name + " » a été mis à jour."
+      : "Enregistré sous « " + name + " ». Retrouve-le plus bas, dans les résultats enregistrés.";
+    renderSaved();
+  }
+
+  function submitImport(ev) {
+    ev.preventDefault();
+    const msg = $("#import-msg");
+    const link = $("#import-link");
+    const nameInput = $("#import-name");
+    msg.classList.remove("is-error");
+    const fail = (text, field) => {
+      msg.textContent = text;
+      msg.classList.add("is-error");
+      field.focus();
+    };
+    const m = /resultat-[cr]\d+-[a-ex]+(?:-de-[0-9a-f]+)?/.exec(link.value || "");
+    const dec = m ? decodeHash(m[0]) : null;
+    if (!dec) return fail("Ce lien ne contient pas de résultat lisible. Copie le lien complet de la page de résultat.", link);
+    const name = cleanName(nameInput.value) || dec.name;
+    if (!name) return fail("Indique un prénom ou un pseudo pour ce résultat.", nameInput);
+    const res = upsertSaved(name, dec.mode, dec.code);
+    if (!res.ok) return fail("Impossible d'enregistrer : le stockage de ce navigateur est désactivé (navigation privée ?).", link);
+    link.value = "";
+    nameInput.value = "";
+    msg.textContent = res.replaced ? "Le résultat de « " + name + " » a été mis à jour." : "Résultat de « " + name + " » ajouté.";
+    renderSaved();
+  }
+
+  function renderSaved() {
+    const section = $("#groupe");
+    const list = saved.list();
+    const usable = list.filter((e) => entryResult(e));
+    if (!state.compareInit) {
+      usable.slice(-4).forEach((e) => state.compare.add(e.id));
+      state.compareInit = true;
+    }
+    section.hidden = state.view === "quiz" || (state.view !== "results" && list.length === 0);
+    $("#nav-saved").hidden = list.length === 0;
+    $("#saved-link").hidden = list.length === 0;
+    $("#saved-count").textContent = list.length;
+    $("#saved-empty").hidden = list.length > 0;
+
+    const cards = list
+      .slice()
+      .sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")))
+      .map((e) => savedCard(e, list));
+    $("#saved-list").replaceChildren(...cards);
+    applyMedia($("#saved-list"));
+    renderCompare(list);
+  }
+
+  function savedCard(e, list) {
+    const r = entryResult(e);
+    const color = personColor(list, e);
+    const cmpId = "cmp-" + e.id;
+    const head = el("div", { class: "sc-head" }, [
+      el("span", { class: "avatar", style: "--person:" + color, "aria-hidden": "true", text: avatarText(e.name) }),
+      el("div", { class: "sc-title" }, [el("h3", { text: e.name }), el("span", { class: "muted", text: formatDate(e.at) + " · " + MODE_LABEL[e.mode] })]),
+    ]);
+    const body = r
+      ? [
+          el("div", { class: "sc-party" }, [
+            logoEl(r.top.party, "sm"),
+            el("span", {}, [el("strong", { text: r.top.party.name }), el("span", { class: "muted num", text: r.top.aff + " % d'affinité" })]),
+          ]),
+          el("p", { class: "sc-ideo" }, [el("b", { text: r.ideo.name }), " · " + lrLabel(r.hemi)]),
+        ]
+      : [el("p", { class: "muted", text: "Résultat d'une ancienne version du test : il ne peut plus être affiché." })];
+
+    const status = el("p", { class: "form-msg", role: "status" });
+    const out = el("input", { class: "copy-out", type: "text", readonly: true, hidden: true, "aria-label": "Lien du résultat de " + e.name });
+    const del = el("button", { type: "button", class: "btn btn-ghost btn-small", text: "Supprimer" });
+    let armed = null;
+    del.addEventListener("click", () => {
+      if (armed) {
+        clearTimeout(armed);
+        removeSaved(e.id);
+        renderSaved();
+        return;
+      }
+      del.textContent = "Confirmer la suppression";
+      del.classList.add("is-danger");
+      armed = setTimeout(() => {
+        armed = null;
+        del.textContent = "Supprimer";
+        del.classList.remove("is-danger");
+      }, 4000);
+    });
+
+    const actions = el("div", { class: "sc-actions" }, [
+      r
+        ? el("button", {
+            type: "button",
+            class: "btn btn-small",
+            text: "Voir",
+            onclick: () => {
+              setHash(resultHash(e.mode, e.code, e.name));
+              showResults(e.mode, r.answers, e.name);
+            },
+          })
+        : null,
+      r
+        ? el("button", {
+            type: "button",
+            class: "btn btn-small",
+            text: "Copier le lien",
+            onclick: () => copyText(shareUrl(resultHash(e.mode, e.code, e.name)), status, out, "Lien de « " + e.name + " » copié."),
+          })
+        : null,
+      del,
+    ]);
+
+    const compare = r
+      ? el("label", { class: "sc-compare", for: cmpId }, [
+          el("input", {
+            type: "checkbox",
+            id: cmpId,
+            checked: state.compare.has(e.id),
+            onchange: (ev) => {
+              if (ev.target.checked) state.compare.add(e.id);
+              else state.compare.delete(e.id);
+              renderCompare(saved.list());
+            },
+          }),
+          "Comparer",
+        ])
+      : null;
+
+    return el("article", { class: "saved-card", style: "--person:" + color }, [head, ...body, el("div", { class: "sc-foot" }, [compare, actions]), status, out]);
+  }
+
+  function renderCompare(list) {
+    const panel = $("#compare-panel");
+    const people = list
+      .map((e) => ({ e, r: entryResult(e), color: personColor(list, e) }))
+      .filter((x) => x.r && state.compare.has(x.e.id));
+    const usable = list.filter((e) => entryResult(e)).length;
+    if (usable < 2) {
+      panel.hidden = true;
+      panel.replaceChildren();
+      return;
+    }
+    panel.hidden = false;
+    const head = el("div", { class: "compare-head" }, [el("h3", { text: "Comparaison" })]);
+    if (people.length < 2) {
+      panel.replaceChildren(head, el("p", { class: "muted", text: "Coche « Comparer » sur au moins deux résultats pour les voir côte à côte." }));
+      return;
+    }
+
+    // Accord entre chaque paire
+    const pairs = [];
+    for (let i = 0; i < people.length; i++) {
+      for (let j = i + 1; j < people.length; j++) {
+        pairs.push({ a: people[i], b: people[j], aff: affinity(people[i].r.s, people[j].r.s) });
+      }
+    }
+    pairs.sort((x, y) => y.aff - x.aff);
+    const best = pairs[0], worst = pairs[pairs.length - 1];
+    const gap = (p) => {
+      const g = AXIS_IDS.map((a) => ({ a, d: Math.abs(p.a.r.s[a] - p.b.r.s[a]) })).sort((x, y) => y.d - x.d)[0];
+      return AXIS[g.a].name.toLowerCase();
+    };
+    const summary =
+      pairs.length === 1
+        ? best.a.e.name + " et " + best.b.e.name + " sont d'accord à " + best.aff + " %. Leur plus grand désaccord : " + gap(best) + "."
+        : "Les plus proches : " + best.a.e.name + " et " + best.b.e.name + " (" + best.aff + " %). Les plus éloignés : " + worst.a.e.name + " et " + worst.b.e.name + " (" + worst.aff + " %), surtout sur " + gap(worst) + ".";
+
+    const legend = el(
+      "div",
+      { class: "legend" },
+      people.map((p) => el("span", {}, [el("i", { class: "l-person", style: "--person:" + p.color }), p.e.name]))
+    );
+
+    const rows = AXES.map((a) => {
+      const t = el("div", { class: "track", "aria-hidden": "true" });
+      const placed = [];
+      people
+        .slice()
+        .sort((x, y) => x.r.s[a.id] - y.r.s[a.id])
+        .forEach((p) => {
+          const left = Number(toPct(p.r.s[a.id]));
+          const stack = placed.filter((x) => Math.abs(x - left) < 4).length;
+          placed.push(left);
+          t.append(
+            el("span", {
+              class: "mark",
+              title: p.e.name + " : " + (p.r.s[a.id] > 0 ? "+" : "") + Math.round(p.r.s[a.id]),
+              style: "left:" + left + "%;--person:" + p.color + ";--lift:" + stack * -14 + "px",
+              text: avatarText(p.e.name),
+            })
+          );
+        });
+      return el("div", { class: "compare-row cmp-row" }, [el("span", { text: a.name + " · " + a.neg + " ↔ " + a.pos }), t]);
+    });
+
+    const table = el("table", { class: "matrix" }, [
+      el("caption", { text: "Pourcentage d'accord entre chaque paire" }),
+      el("thead", {}, [el("tr", {}, [el("th", { scope: "col", text: "" }), ...people.map((p) => el("th", { scope: "col", text: p.e.name }))])]),
+      el(
+        "tbody",
+        {},
+        people.map((p, i) =>
+          el("tr", {}, [
+            el("th", { scope: "row" }, [el("i", { class: "l-person", style: "--person:" + p.color }), p.e.name]),
+            ...people.map((q, j) => {
+              if (i === j) return el("td", { class: "diag", text: "—" });
+              const v = affinity(p.r.s, q.r.s);
+              return el("td", { class: "num", style: "--v:" + v, text: v + " %" });
+            }),
+          ])
+        )
+      ),
+    ]);
+
+    const parties = el(
+      "ul",
+      { class: "cmp-parties" },
+      people.map((p) =>
+        el("li", {}, [el("i", { class: "l-person", style: "--person:" + p.color }), el("b", { text: p.e.name }), logoEl(p.r.top.party, "sm"), el("span", { text: p.r.top.party.name + " · " + p.r.ideo.name })])
+      )
+    );
+
+    panel.replaceChildren(head, el("p", { class: "cmp-summary", text: summary }), legend, el("div", { class: "compare cmp-axes" }, rows), el("div", { class: "matrix-wrap" }, [table]), parties);
+    applyMedia(panel);
+  }
+
+  // ------------------------------------------------------------------
   // Évènements
   // ------------------------------------------------------------------
   function bind() {
@@ -1049,22 +1454,11 @@
     });
 
     $("#copy-link").addEventListener("click", () => {
-      const url = location.href;
-      const out = $("#copy-out");
-      const toast = $("#copy-toast");
-      const fallback = () => {
-        out.value = url;
-        out.hidden = false;
-        out.focus();
-        out.select();
-        toast.textContent = "Copie automatique impossible : sélectionne le lien ci-dessous.";
-      };
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(url).then(() => { toast.textContent = "Lien copié."; }, fallback);
-      } else {
-        fallback();
-      }
+      const R = state.results;
+      copyText(shareUrl(resultHash(R.mode, R.code, R.name)), $("#copy-toast"), $("#copy-out"));
     });
+    $("#save-form").addEventListener("submit", submitSave);
+    $("#import-form").addEventListener("submit", submitImport);
     $("#restart-c").addEventListener("click", () => startQuiz("c", false));
     $("#restart-r").addEventListener("click", () => startQuiz("r", false));
 
@@ -1080,7 +1474,7 @@
   function route() {
     const decoded = decodeHash(location.hash);
     if (decoded) {
-      showResults(decoded.mode, decoded.answers);
+      showResults(decoded.mode, decoded.answers, decoded.name);
     } else if ($("#view-results").hidden === false && !location.hash) {
       goHome();
     }
@@ -1096,12 +1490,12 @@
     renderHome();
     M.load();
     const decoded = decodeHash(location.hash);
-    if (decoded) showResults(decoded.mode, decoded.answers);
+    if (decoded) showResults(decoded.mode, decoded.answers, decoded.name);
     else showView("home");
   }
 
   // Exposé pour les tests automatiques.
-  window.ISOLOIR = { computeScores, rankParties, affinity, distance, hemicyclePosition, ORDERS, encodeAnswers, decodeHash };
+  window.ISOLOIR = { computeScores, rankParties, affinity, distance, hemicyclePosition, ORDERS, encodeAnswers, decodeHash, nameToHex, hexToName };
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();
