@@ -250,19 +250,23 @@
         <p>Chaque parti a une position estimée de −100 à +100 sur les six axes. L'affinité mesure la distance entre ton profil et le sien : plus elle est faible, plus le pourcentage est élevé.</p>
         <p class="formula">affinité = 100 − 0,7 × √( moyenne des (toi − parti)² )</p>
       </div>
-      <div>
+      <div class="method-wide">
         <h3>D'où viennent les positions des partis</h3>
         <p>Ce sont des estimations éditoriales, fondées sur les programmes, les votes au Parlement, les déclarations des dirigeants et les enquêtes de politologues comme le Chapel Hill Expert Survey. Elles simplifient forcément des partis traversés par des débats internes. Aux États-Unis, chaque grand parti est découpé en deux courants, car l'écart entre eux est considérable.</p>
         <p>Les noms des personnalités indiquent les figures de proue de chaque parti, pas forcément leur candidat à la présidentielle d'avril 2027.</p>
       </div>
-      <div>
-        <h3>Sources consultées</h3>
-        <ul id="sources"></ul>
-      </div>
-      <div class="credits-block">
-        <h3>Crédits des images</h3>
-        <p id="credits-status"></p>
-        <ul class="credits" id="credits"></ul>
+      <div class="folds">
+        <details class="fold" id="fold-sources">
+          <summary><span class="fold-title">Sources consultées</span><span class="fold-count num" id="sources-count"></span></summary>
+          <ul class="fold-list" id="sources"></ul>
+        </details>
+        <details class="fold" id="fold-credits">
+          <summary><span class="fold-title">Crédits des images</span><span class="fold-count num" id="credits-count"></span></summary>
+          <div class="fold-body">
+            <p id="credits-status"></p>
+            <ul class="credits fold-list" id="credits"></ul>
+          </div>
+        </details>
       </div>
     </div>
   </section>

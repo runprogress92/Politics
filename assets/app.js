@@ -338,7 +338,9 @@
     } else if (!items.length) {
       note.textContent =
         "Les logos et les portraits n'ont pas pu être chargés depuis Wikimédia Commons (connexion bloquée ou hors ligne). Des pastilles aux couleurs des partis les remplacent.";
-    } else {
+    }
+    $("#credits-count").textContent = items.length ? String(items.length) : "";
+    if (items.length) {
       note.textContent =
         items.length + " images sous licence libre, hébergées par Wikimédia Commons. Chaque lien ouvre la page du fichier, avec sa licence complète.";
     }
@@ -1409,6 +1411,7 @@
   function bind() {
     $$("[data-updated]").forEach((n) => { n.textContent = D.UPDATED; });
     $("#sources").replaceChildren(...D.SOURCES.map((src) => el("li", {}, [el("a", { href: src.url, target: "_blank", rel: "noopener", text: src.label })])));
+    $("#sources-count").textContent = String(D.SOURCES.length);
     $$("[data-mode]").forEach((b) => b.addEventListener("click", () => startQuiz(b.dataset.mode, false)));
     $("#resume-go").addEventListener("click", () => {
       const saved = storage.get();
